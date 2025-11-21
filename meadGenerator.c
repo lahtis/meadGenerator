@@ -1,9 +1,12 @@
-// Copyright (C) [2025] [Tuomas L‰hteenm‰ki].
+// Copyright (C) [2025] [Tuomas L√§hteenm√§ki].
 // The meadGenerator.c was created together with Gemini.
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
+
+
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,11 +22,11 @@
 // Conversion factors
 #define KG_TO_LBS 2.20462 // 1 kg = 2.20462 lbs
 #define L_TO_GAL 0.264172 // 1 L = 0.264172 gallons
-#define VERSION_STRING  "0.1.0"
+#define VERSION_STRING  "0.1.1"
 
 // --- Function Prototyypes ---
 void display_menu();
-double get_target_og(int abv, const char* sweetness);
+double get_target_og(int abv, const char* sweetness, int is_turbo);
 void calculate_us_imperial(double volume_gal, double target_og);
 void calculate_metric(double volume_L, double target_og);
 double convert_kg_to_lbs(double kg); // Note: Only used for conversion factor definition now
@@ -43,6 +46,7 @@ int main() {
     double volume;
     int abv;
     char sweetness_str[20];
+    int is_turbo_mode; // New variable to track turbo mode
 
     // Get batch volume
     printf("Enter batch volume (in %s): ", (choice == 1) ? "Gallons" : "Liters");
@@ -53,8 +57,9 @@ int main() {
 
     // Get target ABV
     printf("Enter target ABV (%%, e.g., 14): ");
+    // Max ABV is now 25 to support turbo yeast
     if (scanf("%d", &abv) != 1 || abv < 5 || abv > 25) {
-        printf("Invalid ABV range. Exiting.\n");
+        printf("Invalid ABV range (must be between 5%% and 25%%). Exiting.\n");
         return 1;
     }
 
@@ -65,8 +70,16 @@ int main() {
         return 1;
     }
 
+    // New: Ask for Turbo Yeast method
+    printf("Are you using Turbo Yeast Method? (1 for Standard Yeast, 2 for Turbo Yeast): ");
+    if (scanf("%d", &is_turbo_mode) != 1 || (is_turbo_mode != 1 && is_turbo_mode != 2)) {
+        printf("Invalid selection for yeast method. Exiting.\n");
+        return 1;
+    }
+
+
     // Calculate Target Original Gravity (OG)
-    double target_og = get_target_og(abv, sweetness_str);
+    double target_og = get_target_og(abv, sweetness_str, is_turbo_mode);
 
     if (target_og == 0.0) {
         printf("Error: Invalid sweetness level entered. Please use Dry, Semi-Sweet, Sweet, or Dessert.\n");
@@ -107,28 +120,38 @@ void display_menu() {
     printf("Assumptions:\n");
     printf(" - Honey contributes 35 gravity points per pound per gallon (PPG).\n");
     printf(" - Sweetness level determines the assumed Final Gravity (FG).\n");
+    printf(" - TURBO YEAST MODE: Forces Final Gravity (FG) to 1.000 (Dry).\n");
 }
 
 /**
  * @brief Calculates the required Original Gravity (OG) based on target ABV and sweetness.
  * * @param abv Target Alcohol by Volume percentage.
  * @param sweetness String representing the desired sweetness level.
+ * @param is_turbo Flag: 1 for Standard, 2 for Turbo Yeast.
  * @return double The required Original Gravity (e.g., 1.100), or 0.0 on error.
  */
-double get_target_og(int abv, const char* sweetness) {
-    // Standard FG estimates for different sweetness levels
+double get_target_og(int abv, const char* sweetness, int is_turbo) {
     double fg;
-    if (strcasecmp(sweetness, "Dry") == 0) {
-        fg = 1.000;
-    } else if (strcasecmp(sweetness, "Semi-Sweet") == 0) {
-        fg = 1.010;
-    } else if (strcasecmp(sweetness, "Sweet") == 0) {
-        fg = 1.020;
-    } else if (strcasecmp(sweetness, "Dessert") == 0) {
-        fg = 1.030;
+
+    // Standard FG estimates for different sweetness levels (used only if not turbo)
+    if (is_turbo == 1) {
+        if (strcasecmp(sweetness, "Dry") == 0) {
+            fg = 1.000;
+        } else if (strcasecmp(sweetness, "Semi-Sweet") == 0) {
+            fg = 1.010;
+        } else if (strcasecmp(sweetness, "Sweet") == 0) {
+            fg = 1.020;
+        } else if (strcasecmp(sweetness, "Dessert") == 0) {
+            fg = 1.030;
+        } else {
+            return 0.0; // Invalid sweetness
+        }
     } else {
-        return 0.0; // Invalid sweetness
+        // TURBO YEAST MODE: Assumes fermentation goes to bone dry
+        fg = 1.000;
+        printf("\nNOTE: Turbo Yeast selected. Final Gravity (FG) forced to 1.000.\n");
     }
+
 
     // Mead/Wine ABV formula approximation: ABV = (OG - FG) * 131.25
     // Rearranging for OG: OG = FG + (ABV / 131.25)
